@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Compliance Control Center</title>
+  <meta name="color-scheme" content="light dark">
+
+  <!-- Chart + jsPDF (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- CSS served by Flask static -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo"><img src="{{ url_for('static', filename='generated-image.png') }}" alt="Logo"></div>
+      <div>
+        <div class="title">Compliance</div>
+        <div class="sub">Control Center</div>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="active" data-view="dashboard">📊 Dashboard</button>
+      <button data-view="records">📁 Records</button>
+      <button data-view="summaries">📝 Summaries</button>
+      <button data-view="rules">📚 Rules</button>
+      <button data-view="alerts">🚨 Alerts</button>
+      <button data-view="guidelines">📘 Guidelines</button>
+      <button id="darkToggle">🌙 Dark Mode</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- DASHBOARD -->
+    <section id="viewDashboard" class="view">
+      <div class="card kpi-row">
+        <div class="kpi">
+          <div class="kpi-icon">🛡️</div>
+          <div class="kpi-body">
+            <div class="kpi-title">AML Reviews</div>
+            <div class="kpi-value" id="sAml">0</div>
+            <div class="kpi-sub" id="sAmlChange"></div>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-icon">🚨</div>
+          <div class="kpi-body">
+            <div class="kpi-title">Transaction Alerts</div>
+            <div class="kpi-value" id="sAlert">0</div>
+            <div class="kpi-sub" id="sAlertChange"></div>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-icon">📄</div>
+          <div class="kpi-body">
+            <div class="kpi-title">Document Audits</div>
+            <div class="kpi-value" id="sDoc">0</div>
+            <div class="kpi-sub" id="sDocChange"></div>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-icon">📈</div>
+          <div class="kpi-body">
+            <div class="kpi-title">Overall Risk</div>
+            <div class="kpi-value" id="sRisk">0%</div>
+            <div class="kpi-sub">Score: <span id="scorePercent">80</span>%</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card charts-row">
+        <div class="chart-card">
+          <h4>Activity</h4>
+          <canvas id="barChart"></canvas>
+        </div>
+        <div class="chart-card small">
+          <h4>Distribution</h4>
+          <canvas id="pieChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Analysis Points</h3>
+        <div class="analysis-grid">
+          <div class="analysis-box">
+            <b>Top Issues</b>
+            <ul id="topIssues" class="analysis-list">
+              <li>High number of Transaction Alerts</li>
+              <li>Missing documents in audits</li>
+              <li>AML review delays</li>
+            </ul>
+          </div>
+
+          <div class="analysis-box">
+            <b>Risk Trend</b>
+            <p id="riskTrend">Overall risk increased by <b>0%</b> recently.</p>
+          </div>
+
+          <div class="analysis-box">
+            <b>Compliance Score</b>
+            <p class="score"><span id="scorePercent2">80</span>%</p>
+            <p class="small-muted">Based on recent PDF reviews</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Upload PDF</h3>
+        <div class="upload-row">
+          <select id="uploadCategory" class="select">
+            <option value="AML">AML Review</option>
+            <option value="ALERT">Transaction Alert</option>
+            <option value="DOC">Document Audit</option>
+          </select>
+          <input type="file" id="pdfInput" accept="application/pdf">
+          <button class="btn" id="uploadBtn">Upload</button>
+        </div>
+        <div id="uploadMsg" class="muted small-muted"></div>
+      </div>
+    </section>
+
+    <!-- RECORDS -->
+    <section id="viewRecords" class="view" style="display:none">
+      <div class="card">
+        <h3>PDF Records</h3>
+        <div class="table-controls">
+          <input id="searchBox" placeholder="Search...">
+          <div>
+            <button id="sortDateBtn" class="btn small">Sort Date</button>
+            <button id="prevPage" class="btn small">Prev</button>
+            <span id="pageInfo" class="small-muted">1</span>
+            <button id="nextPage" class="btn small">Next</button>
+            <a href="/export_excel" class="btn small">Export CSV</a>
+          </div>
+        </div>
+
+        <div id="tableLoader" class="loader" style="display:none"></div>
+
+        <table class="records-table">
+          <thead>
+            <tr><th>ID</th><th>Category</th><th>Date</th><th>Preview</th></tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SUMMARIES -->
+    <section id="viewSummaries" class="view" style="display:none">
+      <div class="card">
+        <h3>Summaries</h3>
+        <div class="row">
+          <select id="sumDocSelect" class="select"></select>
+          <button class="btn" id="fetchSummaryBtn">Get Summary</button>
+          <button class="btn" id="downloadSummaryBtn">⬇ Download PDF</button>
+        </div>
+        <div id="summaryLoader" class="loader" style="display:none"></div>
+        <pre id="summaryText" class="summary-box"></pre>
+      </div>
+    </section>
+
+    <!-- RULES -->
+    <section id="viewRules" class="view" style="display:none">
+      <div class="card">
+        <h3>Rules & Checklist</h3>
+        <div class="row">
+          <select id="rulesDocId" class="select"></select>
+          <button class="btn" id="extractRulesBtn">Extract Rules</button>
+          <button class="btn" id="generateChecklistBtn">Generate Checklist</button>
+        </div>
+
+        <h4>Rules:</h4>
+        <pre id="rulesText" class="summary-box"></pre>
+
+        <h4>Checklist:</h4>
+        <div id="checklistArea"></div>
+      </div>
+    </section>
+
+    <!-- ALERTS -->
+    <section id="viewAlerts" class="view" style="display:none">
+      <div class="card">
+        <h3>Alerts Overview</h3>
+        <canvas id="alertsPie"></canvas>
+      </div>
+    </section>
+
+    <!-- GUIDELINES -->
+    <section id="viewGuidelines" class="view" style="display:none">
+      <div class="card">
+        <h3>Extracted Guidelines</h3>
+        <div class="guidelines-controls">
+          <input id="guidelineSearch" placeholder="Search guidelines...">
+          <button class="btn" id="downloadGuidelines">⬇ Download</button>
+        </div>
+        <div id="guidelinesList" class="guidelines-list">Loading...</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Chat launcher (image served from static) -->
+  <!-- CHAT LAUNCHER BUTTON -->
+<div id="chatLauncher" class="chat-launcher">
+    <img src="{{ url_for('static', filename='dancing-bot.gif') }}" class="launcher-bot">
+</div>
+
+<!-- CHAT WINDOW -->
+<div id="chatBox" class="chatbox">
+    <div class="chat-header">
+        <img src="{{ url_for('static', filename='dancing-bot.gif') }}" class="chatbot-gif">
+        <span>RegBot AI Assistant</span>
+        <button class="close-chat" onclick="toggleChat()">🤖</button>
+    </div>
+
+    <div id="chatArea" class="chat-area">
+        <div class="msg bot">
+            <div class="bubble bot-bubble">👋 Hello! I'm your Compliance AI Assistant. Ask me anything!</div>
+        </div>
+    </div>
+
+    <div class="chat-input-area">
+        <input id="chatInput" placeholder="Type your question...">
+        <button class="chat-btn send" onclick="askBot()">➤</button>
+        <button class="chat-btn voice" onclick="startVoice()">🎤</button>
+    </div>
+</div>
+
+
+  <!-- Toast container -->
+  <div id="toastWrap" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- App JS (served by Flask static) -->
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

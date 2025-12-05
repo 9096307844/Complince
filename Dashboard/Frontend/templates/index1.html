@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Compliance Control Center</title>
+  <meta name="color-scheme" content="light dark">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --navy:#0f172a;
+      --navy-2:#1e293b;
+      --teal:#0d9488;
+      --indigo:#6366f1;
+      --cyan:#22d3ee;
+      --bg:#f1f5f9;
+      --card:#fff;
+      --muted:#64748b;
+      --shadow:0 10px 24px rgba(2,6,23,.08);
+      --radius:14px;
+      font-family:"Inter","Segoe UI",system-ui,Arial,sans-serif;
+    }
+
+    body{margin:0;display:flex;background:linear-gradient(180deg,#f6f8fb 0%,#eef2f7 100%)}
+    .sidebar{width:260px;background:linear-gradient(180deg,var(--navy),var(--navy-2));color:#e5e7eb;
+      display:flex;flex-direction:column;padding:18px;gap:14px;box-shadow:var(--shadow);transition:.3s}
+
+    .brand{display:flex;align-items:center;gap:12px;padding:10px;background:rgba(255,255,255,.05);border-radius:12px}
+
+    .logo{
+      width:48px;
+      height:48px;
+      display:grid;
+      place-items:center;
+      border-radius:50%;
+      overflow:hidden;
+      background:#fff;
+      box-shadow:0 4px 10px rgba(0,0,0,.15);
+      cursor:pointer;
+      transition:.3s;
+    }
+    .logo img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+    .logo:hover{
+      transform:scale(1.08);
+      box-shadow:0 6px 14px rgba(0,0,0,.22);
+    }
+
+    .title{font-size:18px;font-weight:800}
+    .sub{font-size:12px;color:#cbd5e1}
+    .nav button{background:none;border:none;color:#e2e8f0;padding:10px 12px;border-radius:10px;text-align:left;cursor:pointer;width:100%}
+    .nav button.active{background:rgba(99,102,241,.3);color:#fff}
+
+    .main{flex:1;padding:20px;overflow:auto}
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:18px}
+    .btn{background:linear-gradient(135deg,var(--teal),var(--cyan));border:none;color:#fff;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600}
+    .select{padding:8px;border-radius:10px;border:1px solid #ccc}
+
+    #barChart,#pieChart,#alertsPie{height:220px!important}
+
+    /* Chat styles */
+    .chat-popup-btn{
+      position:fixed;
+      bottom:20px;
+      right:20px;
+      background:linear-gradient(135deg,var(--teal),var(--indigo));
+      color:#fff;
+      padding:14px;
+      border-radius:50%;
+      cursor:pointer;
+      font-size:20px;
+      box-shadow:var(--shadow);
+      z-index:9999;
+    }
+
+    .chat{
+      position:fixed;
+      bottom:80px;
+      right:20px;
+      width:320px;
+      max-height:450px;
+      display:none;
+      flex-direction:column;
+      background:linear-gradient(180deg,#0f172a,#1e293b);
+      color:white;
+      box-shadow:var(--shadow);
+      border-radius:14px;
+      z-index:9999;
+    }
+    .chat-body{flex:1;padding:10px;overflow:auto}
+    .chat-input{display:flex;gap:6px;padding:10px;border-top:1px solid rgba(255,255,255,.1)}
+    .chat-input input{flex:1;padding:10px;border-radius:8px;border:none}
+    .bubble{display:inline-block;padding:8px 10px;border-radius:10px;margin:6px 0;line-height:1.3}
+    .you .bubble{background:#fff;color:#0f172a}
+    .bot .bubble{background:rgba(255,255,255,.2)}
+  </style>
+</head>
+
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <img src="{{ url_for('static', filename='generated-image.png') }}" alt="Logo">
+      </div>
+
+      <div>
+        <div class="title">Compliance</div>
+        <div class="sub">Control Center</div>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="active" onclick="switchView('dashboard')">📊 Dashboard</button>
+      <button onclick="switchView('records')">📁 Records</button>
+      <button onclick="switchView('summaries')">📝 Summaries</button>
+      <button onclick="switchView('rules')">📚 Rules</button>
+      <button onclick="switchView('alerts')">🚨 Alerts</button>
+      <button onclick="switchView('guidelines')">📘 Guidelines</button>
+      <button onclick="toggleDark()">🌙 Dark Mode</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div id="viewDashboard">
+
+      <div class="card">
+        <h3>Dashboard Overview</h3>
+
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+          <div><b>AML Reviews:</b> <span id="sAml">0</span></div>
+          <div><b>Transaction Alerts:</b> <span id="sAlert">0</span></div>
+          <div><b>Document Audits:</b> <span id="sDoc">0</span></div>
+          <div><b>Overall Risk:</b> <span id="sRisk">0%</span></div>
+        </div>
+
+        <div style="max-width:600px;margin:auto">
+          <canvas id="barChart"></canvas>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div style="max-width:400px;margin:auto">
+          <canvas id="pieChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 🔍 NEW ANALYSIS SECTION -->
+      <div class="card">
+        <h3>Analysis Points</h3>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:12px">
+
+          <div style="background:#f8fafc;padding:14px;border-radius:12px">
+            <b>Top Issues</b>
+            <ul style="margin-top:6px;line-height:1.6;color:#475569">
+              <li>High number of Transaction Alerts</li>
+              <li>Missing documents in audits</li>
+              <li>AML review delays</li>
+            </ul>
+          </div>
+
+          <div style="background:#f8fafc;padding:14px;border-radius:12px">
+            <b>Risk Trend</b>
+            <p style="margin-top:6px;color:#475569">
+              Overall risk increased by <b id="riskTrend">0%</b> recently.
+            </p>
+          </div>
+
+          <div style="background:#f8fafc;padding:14px;border-radius:12px">
+            <b>Compliance Score</b>
+            <p style="font-size:26px;font-weight:700;color:#0d9488">
+              <span id="scoreBox">80</span>%
+            </p>
+            <p style="color:#475569;margin-top:-8px">Based on recent PDF reviews</p>
+          </div>
+
+        </div>
+      </div>
+      <!-- END ANALYSIS SECTION -->
+
+      <div class="card">
+        <h3>Upload PDF</h3>
+        <select id="uploadCategory" class="select">
+          <option value="AML">AML Review</option>
+          <option value="ALERT">Transaction Alert</option>
+          <option value="DOC">Document Audit</option>
+        </select>
+        <input type="file" id="pdfInput" accept="application/pdf">
+        <button class="btn" onclick="uploadPDF()">Upload</button>
+        <div id="uploadMsg" style="margin-top:10px;color:var(--muted)"></div>
+      </div>
+
+    </div>
+
+    <!-- OTHER SECTIONS (same as your code, unchanged) -->
+    <div id="viewRecords" style="display:none">
+      <div class="card">
+        <h3>PDF Records</h3>
+        <input id="searchBox" placeholder="Search..." oninput="loadTable()" />
+        <table style="width:100%;margin-top:10px;border-collapse:collapse">
+          <thead><tr><th>ID</th><th>Category</th><th>Date</th><th>Preview</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="viewSummaries" style="display:none">
+      <div class="card">
+        <h3>Summaries</h3>
+        <select id="sumDocSelect" class="select"></select>
+        <button class="btn" onclick="fetchSummary()">Get Summary</button>
+        <button class="btn" onclick="downloadSummaryPDF()" style="margin-top:10px">⬇ Download PDF</button>
+        <pre id="summaryText" style="white-space:pre-wrap;margin-top:10px"></pre>
+      </div>
+    </div>
+
+    <div id="viewRules" style="display:none">
+      <div class="card">
+        <h3>Rules & Checklist</h3>
+        <select id="rulesDocId" class="select"></select>
+        <button class="btn" onclick="extractRules()">Extract Rules</button>
+        <button class="btn" onclick="generateChecklist()">Generate Checklist</button>
+
+        <h4>Rules:</h4>
+        <pre id="rulesText" style="white-space:pre-wrap;margin-top:10px"></pre>
+
+        <h4>Checklist:</h4>
+        <div id="checklistArea" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <div id="viewAlerts" style="display:none">
+      <div class="card">
+        <h3>Alerts Overview</h3>
+        <div style="max-width:400px;margin:auto">
+          <canvas id="alertsPie"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div id="viewGuidelines" style="display:none">
+      <div class="card">
+        <h3>Extracted Guidelines</h3>
+        <div id="guidelinesList" style="line-height:1.7;font-size:15px;color:var(--navy)">
+          Loading...
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Chatbot -->
+  <div class="chat-popup-btn" onclick="toggleChat()">🤖</div>
+
+  <div class="chat" id="chatBox">
+    <div class="chat-body" id="chatArea">
+      <div class="msg bot"><div class="bubble">Hello 👋 Ask me about compliance documents.</div></div>
+    </div>
+
+    <div class="chat-input">
+      <input id="chatInput" placeholder="Ask a question..." />
+      <button class="btn" onclick="askBot()">Send</button>
+      <button class="btn" onclick="startVoice()">🎤</button>
+      <button class="btn" onclick="speakBot()">🔊</button>
+    </div>
+  </div>
+
+<script>
+const API="http://127.0.0.1:5000"
+
+/* CHART HANDLES */
+let charts={bar:null,pie:null}
+let alertsChart=null
+
+document.addEventListener("DOMContentLoaded",()=>{
+  loadDashboard();
+  loadPDFDropdowns();
+  loadAlerts();
+  loadGuidelines();
+});
+
+/* AUTO REFRESH */
+setInterval(()=>{loadDashboard();loadAlerts();},10000);
+
+/* SWITCH VIEW */
+function switchView(v){
+  ["Dashboard","Records","Summaries","Rules","Alerts","Guidelines"].forEach(n=>{
+    document.getElementById("view"+n).style.display=(n.toLowerCase()===v.toLowerCase())?"":"none";
+  });
+}
+
+/* DARK MODE */
+function toggleDark(){document.body.classList.toggle("dark");}
+
+/* CHAT POPUP */
+function toggleChat(){
+  const box=document.getElementById("chatBox");
+  box.style.display=(box.style.display==="none"||box.style.display==="")?"flex":"none";
+}
+
+/* UPLOAD PDF */
+async function uploadPDF(){
+  const fileInput=document.getElementById("pdfInput");
+  const category=document.getElementById("uploadCategory").value;
+  if(!fileInput.files.length){alert("Select a PDF!");return;}
+
+  let fd=new FormData();
+  fd.append("pdf", fileInput.files[0]);
+  fd.append("category", category);
+
+  document.getElementById("uploadMsg").textContent="Uploading...";
+
+  const r=await fetch(API+"/upload_pdf",{method:"POST",body:fd});
+  const j=await r.json();
+
+  if(j.id){
+    document.getElementById("uploadMsg").innerHTML="✅ Uploaded: "+j.id;
+    loadDashboard();
+    loadPDFDropdowns();
+    loadAlerts();
+    loadGuidelines();
+  } 
+  else {
+    document.getElementById("uploadMsg").textContent="❌ Upload failed";
+  }
+}
+
+/* DASHBOARD DATA */
+async function loadDashboard(){
+  const r=await fetch(`${API}/dashboard_stats`);
+  const d=await r.json();
+
+  document.getElementById("sAml").textContent=d.aml_reviews;
+  document.getElementById("sAlert").textContent=d.transaction_alerts;
+  document.getElementById("sDoc").textContent=d.document_audits;
+  document.getElementById("sRisk").textContent=d.risk_percent+"%";
+
+  loadBarChart(d);
+  loadPieChart(d);
+  updateAnalysis(d);
+}
+
+/* ANALYSIS LOGIC */
+function updateAnalysis(d){
+  const score = 100 - d.risk_percent;
+  document.getElementById("scoreBox").textContent = score;
+
+  const trend = (d.transaction_alerts * 0.4) + (d.aml_reviews * 0.2);
+  document.getElementById("riskTrend").textContent = trend.toFixed(1);
+}
+
+/* BAR CHART */
+function loadBarChart(d){
+  if(charts.bar) charts.bar.destroy();
+
+  charts.bar=new Chart(document.getElementById("barChart"),{
+    type:"bar",
+    data:{
+      labels:["AML","Alerts","Docs"],
+      datasets:[{data:[d.aml_reviews,d.transaction_alerts,d.document_audits]}]
+    }
+  });
+}
+
+/* PIE CHART */
+function loadPieChart(d){
+  if(charts.pie) charts.pie.destroy();
+
+  charts.pie=new Chart(document.getElementById("pieChart"),{
+    type:"pie",
+    data:{
+      labels:["AML","Alerts","Docs"],
+      datasets:[{data:[d.aml_reviews,d.transaction_alerts,d.document_audits]}]
+    }
+  });
+}
+
+/* TABLE */
+async function loadTable(){
+  const s=document.getElementById("searchBox").value||"";
+  const r=await fetch(`${API}/all_pdfs?search=${s}&page=1`);
+  const j=await r.json();
+  const tb=document.getElementById("tbody");tb.innerHTML="";
+  (j.data||[]).forEach(row=>{
+    tb.innerHTML+=`
+      <tr>
+        <td>${row.id}</td>
+        <td>${row.category}</td>
+        <td>${row.date}</td>
+        <td>${row.preview}</td>
+      </tr>`;
+  });
+}
+
+/* DROPDOWN LOAD */
+async function loadPDFDropdowns(){
+  const r=await fetch(API+"/all_pdfs?search=&page=1");
+  const j=await r.json();
+  const s1=document.getElementById("sumDocSelect");
+  const s2=document.getElementById("rulesDocId");
+
+  s1.innerHTML='<option value="">-- Select Document --</option>';
+  s2.innerHTML='<option value="">-- Select Document --</option>';
+
+  (j.data||[]).forEach(d=>{
+    s1.innerHTML+=`<option value="${d.id}">${d.id}</option>`;
+    s2.innerHTML+=`<option value="${d.id}">${d.id}</option>`;
+  });
+}
+
+/* SUMMARY */
+async function fetchSummary(){
+  const id=document.getElementById("sumDocSelect").value;
+  if(!id){alert("Select PDF");return;}
+  const r=await fetch(API+"/summarize",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+  const j=await r.json();
+  document.getElementById("summaryText").textContent=j.summary||"No summary";
+}
+
+/* DOWNLOAD SUMMARY */
+function downloadSummaryPDF(){
+  const text=document.getElementById("summaryText").innerText;
+  if(!text){alert("No summary available!");return;}
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.text("Compliance Summary",10,10);
+  doc.text(text,10,20);
+  doc.save("summary.pdf");
+}
+
+/* RULES & CHECKLIST */
+async function extractRules(){
+  const id=document.getElementById("rulesDocId").value;
+  if(!id){alert("Select PDF");return;}
+
+  const r=await fetch(API+"/extract_rules",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+  const j=await r.json();
+  document.getElementById("rulesText").textContent=(j.rules||[]).join("\n");
+}
+
+async function generateChecklist(){
+  const id=document.getElementById("rulesDocId").value;
+  if(!id){alert("Select PDF");return;}
+
+  const r=await fetch(API+"/generate_checklist",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+  const j=await r.json();
+  renderChecklist(j.checklist||[]);
+}
+
+function renderChecklist(items){
+  const a=document.getElementById("checklistArea");
+  a.innerHTML="";
+  if(!items.length){a.textContent="No checklist";return;}
+  items.forEach(i=>{
+    a.innerHTML+=`<div><input type="checkbox"> <b>${i.title}</b> - ${i.detail}</div>`;
+  });
+}
+
+/* ALERTS */
+async function loadAlerts(){
+  const r=await fetch(API+"/alerts_stats");
+  const j=await r.json();
+
+  if(alertsChart) alertsChart.destroy();
+
+  alertsChart=new Chart(document.getElementById("alertsPie"),{
+    type:"doughnut",
+    data:{
+      labels:["Critical","High","Medium","Low"],
+      datasets:[{data:[j.critical,j.high,j.medium,j.low]}]
+    }
+  });
+}
+
+/* GUIDELINES */
+async function loadGuidelines(){
+  const r=await fetch(API+"/get_guidelines");
+  const j=await r.json();
+  const list=document.getElementById("guidelinesList");
+
+  if(!j.guidelines||!j.guidelines.length){
+    list.textContent="No guidelines found";
+    return;
+  }
+
+  let html="";
+  j.guidelines.forEach(g=>{
+    html+=`
+      <div style="margin-bottom:6px">
+        ✔ ${g.guideline}
+        <span style="color:gray;font-size:12px"> (PDF: ${g.source})</span>
+      </div>`;
+  });
+
+  list.innerHTML=html;
+}
+
+/* VOICE INPUT */
+function startVoice(){
+  if(!window.webkitSpeechRecognition){alert("Voice not supported!");return;}
+  const rec=new webkitSpeechRecognition();rec.lang="en-US";
+  rec.onresult=e=>{document.getElementById("chatInput").value=e.results[0][0].transcript;}
+  rec.start();
+}
+
+/* BOT SPEAK */
+function speakBot(){
+  const lastBot=[...document.querySelectorAll(".bot .bubble")].pop();
+  if(!lastBot){alert("No response to speak");return;}
+  let text=lastBot.innerText;
+  const speech=new SpeechSynthesisUtterance(text);
+  speech.lang="en-US";speech.pitch=1;speech.rate=1;speech.volume=1;
+  speechSynthesis.speak(speech);
+}
+
+/* CHATBOT */
+async function askBot(){
+  const q=document.getElementById("chatInput").value.trim();
+  if(!q)return;
+  pushChat("you",q);
+  document.getElementById("chatInput").value="";
+
+  const r=await fetch(API+"/ask",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q})});
+  const j=await r.json();
+  pushChat("bot",j.answer||"No answer");
+}
+
+function pushChat(who,text){
+  const row=document.createElement("div");
+  row.className="msg "+who;
+  const b=document.createElement("div");
+  b.className="bubble";
+  b.textContent=text;
+  row.appendChild(b);
+  document.getElementById("chatArea").appendChild(row);
+  document.getElementById("chatArea").scrollTop=document.getElementById("chatArea").scrollHeight;
+}
+</script>
+
+</body>
+</html>

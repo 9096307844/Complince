@@ -1,0 +1,188 @@
+:root{
+  --navy:#0f172a;
+  --navy-2:#1e293b;
+  --teal:#0d9488;
+  --indigo:#6366f1;
+  --cyan:#22d3ee;
+  --bg:#f1f5f9;
+  --card:#fff;
+  --muted:#64748b;
+  --shadow:0 10px 24px rgba(2,6,23,.08);
+  --radius:14px;
+  font-family:"Inter","Segoe UI",system-ui,Arial,sans-serif;
+}
+
+body{
+  margin:0;
+  display:flex;
+  background:linear-gradient(180deg,#f6f8fb 0%,#eef2f7 100%);
+}
+
+.sidebar{
+  width:260px;
+  background:linear-gradient(180deg,var(--navy),var(--navy-2));
+  color:#e5e7eb;
+  display:flex;
+  flex-direction:column;
+  padding:18px;
+  gap:14px;
+  box-shadow:var(--shadow);
+  transition:.3s;
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:10px;
+  background:rgba(255,255,255,.05);
+  border-radius:12px;
+}
+
+/* LOGO */
+.logo{
+  width:48px;
+  height:48px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  overflow:hidden;
+  background:#fff;
+  box-shadow:0 4px 10px rgba(0,0,0,.15);
+  cursor:pointer;
+  transition:.3s;
+}
+
+.logo img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.logo:hover{
+  transform:scale(1.08);
+  box-shadow:0 6px 14px rgba(0,0,0,.22);
+}
+
+.title{font-size:18px;font-weight:800}
+.sub{font-size:12px;color:#cbd5e1}
+
+.nav button{
+  background:none;
+  border:none;
+  color:#e2e8f0;
+  padding:10px 12px;
+  border-radius:10px;
+  text-align:left;
+  cursor:pointer;
+  width:100%;
+}
+
+.nav button.active{
+  background:rgba(99,102,241,.3);
+  color:#fff;
+}
+
+.main{
+  flex:1;
+  padding:20px;
+  overflow:auto;
+}
+
+.card{
+  background:var(--card);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  padding:18px;
+  margin-bottom:18px;
+}
+
+.btn{
+  background:linear-gradient(135deg,var(--teal),var(--cyan));
+  border:none;
+  color:#fff;
+  padding:10px 14px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:600;
+}
+
+.select{
+  padding:8px;
+  border-radius:10px;
+  border:1px solid #ccc;
+}
+
+#barChart,#pieChart,#alertsPie{
+  height:220px !important;
+}
+
+/* CHAT BUTTON */
+.chat-popup-btn{
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  width:55px;
+  height:55px;
+  background-image: url('{{ url_for("static", filename="bot.png") }}');
+  background-size: cover;
+  background-position: center;
+  border-radius:50%;
+  cursor:pointer;
+  box-shadow:var(--shadow);
+  z-index:9999;
+}
+
+/* CHAT WINDOW */
+.chat{
+  position:fixed;
+  bottom:80px;
+  right:20px;
+  width:320px;
+  min-width:320px;
+  max-height:450px;
+  display:none;
+  flex-direction:column;
+  background:linear-gradient(180deg,#9ca1ac,#1e293b);
+  color:white;
+  box-shadow:var(--shadow);
+  border-radius:14px;
+  z-index:9999;
+}
+
+.chat-body{
+  flex:1;
+  padding:10px;
+  overflow:auto;
+}
+
+.chat-input{
+  display:flex;
+  gap:6px;
+  padding:10px;
+  border-top:1px solid rgba(255,255,255,.1);
+}
+
+.chat-input input{
+  flex:1;
+  padding:10px;
+  border-radius:8px;
+  border:none;
+}
+
+.bubble{
+  display:inline-block;
+  padding:8px 10px;
+  border-radius:10px;
+  margin:6px 0;
+  line-height:1.3;
+}
+
+.you .bubble{
+  background:#fff;
+  color:#0f172a;
+}
+
+.bot .bubble{
+  background:rgba(255,255,255,.2);
+}

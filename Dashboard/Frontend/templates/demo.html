@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Compliance Control Center — Live Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root{
+      --bg:#F8FAFC; --card:#FFFFFF; --muted:#64748B; --primary:#0F172A; 
+      --accent:#0EA5A4; --green:#16A34A; --yellow:#F59E0B; --red:#EF4444;
+      --card-radius:14px; --shadow:0 6px 18px rgba(2,6,23,0.08);
+      font-family:'Inter',sans-serif;
+    }
+
+    body{margin:0;background:#EEF2F7;color:var(--primary)}
+    .app{max-width:1180px;margin:28px auto;padding:20px}
+
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:20px}
+    .card{background:white;padding:16px;border-radius:14px;box-shadow:var(--shadow)}
+    .kpi-value{font-size:22px;font-weight:700}
+
+    .main-row{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:20px}
+
+    .chip{padding:6px 10px;border-radius:20px;color:white;font-size:12px}
+    .low{background:var(--green)} .med{background:var(--yellow);color:#111} .high{background:var(--red)}
+
+    .status.open{background:#FFF7ED;color:#92400E;padding:6px;border-radius:6px}
+    .status.investigating{background:#EFF6FF;color:#1E3A8A;padding:6px;border-radius:6px}
+    .status.remediated{background:#ECFDF5;color:#065F46;padding:6px;border-radius:6px}
+
+    .docs-grid{display:flex;flex-wrap:wrap;gap:10px}
+    .doc-card{background:white;padding:12px;border-radius:10px;box-shadow:var(--shadow)}
+
+    /* Dancing Bot */
+    .dancing-bot{position:fixed;right:25px;bottom:25px;z-index:999}
+    .bot-btn{
+      width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#06b6d4,#3b82f6);
+      display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;
+      animation:float 3s infinite ease-in-out;
+    }
+    @keyframes float{0%{transform:translateY(0)}50%{transform:translateY(-8px)}100%{transform:translateY(0)}}
+
+    /* Chat panel */
+    .chat-panel{position:fixed;right:25px;bottom:100px;width:320px;background:white;border-radius:12px;
+      box-shadow:0 20px 40px rgba(0,0,0,0.2);display:none;flex-direction:column}
+    .chat-body{height:240px;overflow:auto;padding:10px}
+    .msg{padding:10px;border-radius:8px;margin:5px 0;max-width:80%}
+    .msg.user{background:#0f172a;color:white;margin-left:auto}
+    .msg.bot{background:#eef2f7}
+
+  </style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <h2>Compliance Control Center</h2>
+
+  <!-- KPI CARDS -->
+  <section class="grid">
+    <div class="card">
+      <div>Compliance Score</div>
+      <div class="kpi-score kpi-value">--%</div>
+    </div>
+    <div class="card">
+      <div>High Risk Issues</div>
+      <div class="kpi-highrisk kpi-value">--</div>
+    </div>
+    <div class="card">
+      <div>Open Incidents</div>
+      <div class="kpi-open kpi-value">--</div>
+    </div>
+    <div class="card">
+      <div>Training Completion</div>
+      <div class="kpi-training kpi-value">--%</div>
+    </div>
+  </section>
+
+  <!-- MAIN ROW -->
+  <div class="main-row">
+
+    <!-- LEFT SIDE -->
+    <div>
+
+      <!-- HEATMAP -->
+      <div class="card">
+        <h3>Compliance Heatmap</h3>
+        <table id="heatmapTable" border="0" width="100%"></table>
+      </div>
+
+      <!-- CHARTS -->
+      <div class="card">
+        <h3>Training Completion Trend</h3>
+        <canvas id="trainingChart"></canvas>
+      </div>
+
+      <div class="card">
+        <h3>Incidents Trend</h3>
+        <canvas id="incidentsChart"></canvas>
+      </div>
+
+    </div>
+
+    <!-- RIGHT SIDE -->
+    <aside>
+
+      <div class="card">
+        <h3>Latest Incidents</h3>
+        <table id="incidentTable" border="0" width="100%"></table>
+      </div>
+
+      <div class="card">
+        <h3>Policy Documents</h3>
+        <div class="docs-grid" id="policyList"></div>
+      </div>
+
+    </aside>
+  </div>
+</div>
+
+<!-- Dancing Bot -->
+<div class="dancing-bot">
+  <div class="bot-btn" id="botToggle">🤖</div>
+</div>
+
+<!-- Chat Panel -->
+<div id="chatPanel" class="chat-panel">
+  <div style="padding:12px;background:#3b82f6;color:white">Compliance Bot</div>
+  <div id="chatBody" class="chat-body"></div>
+  <div style="padding:10px;display:flex;gap:5px">
+    <input id="chatInput" style="flex:1;padding:8px" placeholder="Type...">
+    <button id="sendBtn" style="padding:8px 12px">Send</button>
+  </div>
+</div>
+
+<script>
+const API = "http://127.0.0.1:5000/api";
+
+// LOAD KPI DATA
+async function loadKPIs(){
+  let res = await fetch(`${API}/kpis`);
+  let data = await res.json();
+
+  document.querySelector(".kpi-score").textContent     = data.compliance_score + "%";
+  document.querySelector(".kpi-highrisk").textContent  = data.high_risk;
+  document.querySelector(".kpi-open").textContent      = data.open_incidents;
+  document.querySelector(".kpi-training").textContent  = data.training_completion + "%";
+}
+
+// LOAD HEATMAP
+async function loadHeatmap(){
+  let res = await fetch(`${API}/heatmap`);
+  let rows = await res.json();
+
+  let html = `
+    <tr><th>Department</th><th>Low</th><th>Medium</th><th>High</th></tr>
+  `;
+
+  rows.forEach(r=>{
+    html += `
+      <tr>
+        <td>${r.department}</td>
+        <td><span class="chip low">${r.low}</span></td>
+        <td><span class="chip med">${r.medium}</span></td>
+        <td><span class="chip high">${r.high}</span></td>
+      </tr>
+    `;
+  });
+
+  document.getElementById("heatmapTable").innerHTML = html;
+}
+
+// LOAD INCIDENT TABLE
+async function loadIncidents(){
+  let res = await fetch(`${API}/incidents`);
+  let rows = await res.json();
+
+  let html = `<tr><th>Issue</th><th>Owner</th><th>Risk</th><th>Status</th></tr>`;
+
+  rows.forEach(r=>{
+    html += `
+      <tr>
+        <td>${r.issue}</td>
+        <td>${r.owner}</td>
+        <td>${r.risk}</td>
+        <td><span class="status ${r.status.toLowerCase()}">${r.status}</span></td>
+      </tr>
+    `;
+  });
+
+  document.getElementById("incidentTable").innerHTML = html;
+}
+// LOAD TRAINING CHART
+async function loadTrainingChart(){
+  let res = await fetch(`${API}/training_chart`);
+  let data = await res.json();
+
+  new Chart(document.getElementById('trainingChart'), {
+    type: 'line',
+    data: {
+      labels: data.labels,
+      datasets: [{
+        label: 'Training %',
+        data: data.data,
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: { plugins:{legend:{display:false}} }
+  });
+}
+
+// LOAD INCIDENT CHART
+async function loadIncidentChart(){
+  let res = await fetch(`${API}/incident_chart`);
+  let data = await res.json();
+
+  new Chart(document.getElementById('incidentsChart'), {
+    type: 'bar',
+    data: {
+      labels: data.labels,
+      datasets: [{
+        label:'Incidents',
+        data:data.data
+      }]
+    },
+    options:{ plugins:{legend:{display:false}} }
+  });
+}
+
+// LOAD POLICIES
+async function loadPolicies(){
+  let res = await fetch(`${API}/policies`);
+  let rows = await res.json();
+
+  let html = "";
+  rows.forEach(p=>{
+    html += `
+      <div class="doc-card">
+        <strong>${p.name}</strong><br>
+        <span style="color:#64748B">${p.version} • ${p.updated}</span>
+      </div>
+    `;
+  });
+
+  document.getElementById("policyList").innerHTML = html;
+}
+
+// INITIAL LOAD
+loadKPIs();
+loadHeatmap();
+loadIncidents();
+loadTrainingChart();
+loadIncidentChart();
+loadPolicies();
+
+
+// -----------------------------
+//   CHATBOT
+// -----------------------------
+const botToggle = document.getElementById("botToggle");
+const chatPanel = document.getElementById("chatPanel");
+const chatBody = document.getElementById("chatBody");
+const chatInput = document.getElementById("chatInput");
+const sendBtn = document.getElementById("sendBtn");
+
+botToggle.onclick = () => {
+  chatPanel.style.display = chatPanel.style.display === "flex" ? "none" : "flex";
+};
+
+function addMsg(text, who){
+  let div = document.createElement("div");
+  div.className = "msg " + who;
+  div.textContent = text;
+  chatBody.appendChild(div);
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+sendBtn.onclick = () => {
+  let msg = chatInput.value.trim();
+  if(!msg) return;
+
+  addMsg(msg, "user");
+  chatInput.value = "";
+
+  setTimeout(() => botReply(msg), 600);
+};
+
+function botReply(msg){
+  msg = msg.toLowerCase();
+
+  if(msg.includes("high") || msg.includes("risk")){
+    addMsg("There are 4 high-risk issues. HR and Finance need attention.", "bot");
+  }
+  else if(msg.includes("training")){
+    addMsg("Training completion is at 92%. Next batch starts in December.", "bot");
+  }
+  else if(msg.includes("policy")){
+    addMsg("Policies available: InfoSec, Data Privacy, Incident SOP.", "bot");
+  }
+  else if(msg.includes("hello") || msg.includes("hi")){
+    addMsg("Hello! Ask me about risk, incidents, or policies.", "bot");
+  }
+  else {
+    addMsg("I did not understand. Try: 'show high-risk issues'.", "bot");
+  }
+}
+
+</script>
+
+</body>
+</html>
